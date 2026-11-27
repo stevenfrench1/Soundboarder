@@ -291,7 +291,10 @@
     } catch (err) {
       editing.pending = null;
       f.fileName.textContent = Engine.has(editing.id) ? (pads[editing.id].fileName || 'Sound') : 'No sound loaded';
-      f.fileError.textContent = `Couldn't read "${file.name}" as audio. Try an MP3 file.`;
+      console.warn('Could not load file', file.name, file.type, file.size, err);
+      f.fileError.textContent = file.size === 0
+        ? `"${file.name}" is empty. If it's in iCloud Drive, open it once in the Files app so it downloads, then try again.`
+        : `Couldn't read "${file.name}" as audio. Try an MP3 file.`;
       f.fileError.hidden = false;
     }
   });
