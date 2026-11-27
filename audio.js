@@ -131,6 +131,14 @@ const Engine = (() => {
     notify(id);
   }
 
+  // Seconds into the sound (wraps for loops), or null if not playing.
+  function position(id) {
+    const v = voices.get(id);
+    if (!v) return null;
+    const t = Math.max(0, ctx.currentTime - v.started);
+    return v.loop ? t % v.duration : Math.min(t, v.duration);
+  }
+
   // Progress 0..1 through the sound (wraps for loops), or null if not playing.
   function progress(id) {
     const v = voices.get(id);
@@ -140,8 +148,35 @@ const Engine = (() => {
     return Math.min(1, t / v.duration);
   }
 
-  // Must be called from a user gesture (tap/click/key) to unlock audio on iOS.
+  // A short silent WAV. Playing it through an <audio> element on older iOS
+  // (no navigator.audioSession) moves audio to the "playback" category, so
+  // Web Audio is not muted by the ring/silent switch.
+  function silentWavUrl() {
+    const n = 4410, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const w = (o, str) => [...str].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, 44100, true); v.setUint32(28, 88200, true); v.setUint16(32, 2, true);
+    v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+    let bin = '';
+    new Uint8Array(buf).forEach((b) => { bin += String.fromCharCode(b); });
+    return 'data:audio/wav;base64,' + btoa(bin);
+  }
+  let htmlAudio = null;
+
+  // Call from user gestures (tap, click, key). On iOS only touchend/click
+  // count as a gesture for audio, not touchstart/pointerdown, so callers try
+  // on several events; it's safe to call repeatedly.
   async function unlock() {
+    if (!navigator.audioSession && !htmlAudio) {
+      try {
+        htmlAudio = new Audio(silentWavUrl());
+        htmlAudio.loop = true;
+        htmlAudio.setAttribute('playsinline', '');
+        const p = htmlAudio.play();
+        if (p && p.catch) p.catch(() => { htmlAudio = null; });
+      } catch (_) { htmlAudio = null; }
+    }
     try {
       const silent = ctx.createBuffer(1, 1, ctx.sampleRate);
       const s = ctx.createBufferSource();
@@ -149,7 +184,9 @@ const Engine = (() => {
       s.connect(ctx.destination);
       s.start(0);
     } catch (_) { /* ignore */ }
-    try { await ctx.resume(); } catch (_) { /* ignore */ }
+    if (ctx.state !== 'running') {
+      try { await ctx.resume(); } catch (_) { /* ignore */ }
+    }
     return ctx.state === 'running';
   }
 
@@ -165,6 +202,8 @@ const Engine = (() => {
     play,
     stop,
     progress,
+    position,
+    isRunning: () => ctx.state === 'running',
     unlock,
     ensureRunning,
     has: (id) => buffers.has(id),

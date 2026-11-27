@@ -76,6 +76,7 @@
       el.setAttribute('role', 'button');
       el.innerHTML = `
         <span class="pad-progress" aria-hidden="true"></span>
+        <span class="pad-now" aria-hidden="true"><span class="pad-play">▶&#xFE0E;</span><span class="pad-time">0:00.00</span></span>
         <span class="pad-name"></span>
         <span class="pad-meta"><span class="pad-flags"></span><kbd class="pad-key"></kbd></span>
         <button class="pad-stop" type="button" aria-label="Stop this pad" tabindex="-1">■</button>`;
@@ -126,6 +127,15 @@
     return (0.299 * r + 0.587 * g + 0.114 * b) > 165;
   }
 
+  // Elapsed time as m:ss.hh (hundredths of a second).
+  function fmtTime(t) {
+    const cs = Math.floor(t * 100);
+    const m = Math.floor(cs / 6000);
+    const s = Math.floor((cs % 6000) / 100);
+    const h = cs % 100;
+    return `${m}:${String(s).padStart(2, '0')}.${String(h).padStart(2, '0')}`;
+  }
+
   // Progress bar animation while anything is playing.
   let raf = 0;
   function tick() {
@@ -133,6 +143,8 @@
     for (const id of ids) {
       const p = Engine.progress(id);
       if (p != null && padEls[id]) padEls[id].style.setProperty('--p', p.toFixed(4));
+      const t = Engine.position(id);
+      if (t != null && padEls[id]) padEls[id].querySelector('.pad-time').textContent = fmtTime(t);
     }
     raf = ids.length ? requestAnimationFrame(tick) : 0;
   }
@@ -140,6 +152,7 @@
     if (typeof id === 'number' && padEls[id]) {
       renderPad(id);
       if (!Engine.isPlaying(id)) padEls[id].style.setProperty('--p', 0);
+      else padEls[id].querySelector('.pad-time').textContent = fmtTime(Engine.position(id) || 0);
     }
     stopAllBtn.classList.toggle('active', Engine.playingIds().length > 0);
     if (!raf && Engine.playingIds().length) raf = requestAnimationFrame(tick);
@@ -530,15 +543,22 @@
   }
 
   // ---------- unlock overlay ----------
-  async function doUnlock() {
-    if (unlocked) return;
-    unlocked = true;
-    unlockEl.classList.add('hidden');
-    await Engine.unlock();
+  function doUnlock() {
+    if (!unlocked) {
+      unlocked = true;
+      unlockEl.classList.add('hidden');
+    }
+    if (!Engine.isRunning()) Engine.unlock();
   }
   unlockEl.addEventListener('pointerdown', (e) => { e.preventDefault(); doUnlock(); });
   unlockEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') doUnlock(); });
 
+  // iOS only lets audio start from touchend/click (not touchstart/pointerdown),
+  // so try again on those for every touch until audio is running. This also
+  // recovers audio after iOS suspends it (background, phone call, Siri).
+  const retryUnlock = () => { if (unlocked && !Engine.isRunning()) Engine.unlock(); };
+  ['touchend', 'pointerup', 'click', 'keydown'].forEach((t) =>
+    window.addEventListener(t, retryUnlock, { capture: true, passive: true }));
   document.addEventListener('visibilitychange', () => { if (!document.hidden && unlocked) Engine.ensureRunning(); });
   window.addEventListener('pointerdown', () => { if (unlocked) Engine.ensureRunning(); }, { capture: true });
   window.addEventListener('resize', layout);

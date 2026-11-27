@@ -361,3 +361,22 @@ body.editing .pad:not(.empty)::after {
 
 /* drag an audio file over a pad */
 .pad.drop-target { outline: 3px dashed #fff; outline-offset: -6px; filter: brightness(1.2); }
+
+/* while playing: big play icon and elapsed time (m:ss.hh) fill the pad */
+.pad-now {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  pointer-events: none;
+}
+.pad.playing .pad-now { display: flex; }
+.pad-play { font-size: clamp(28px, 9vmin, 96px); line-height: 1; opacity: 0.9; }
+.pad-time {
+  font: 700 clamp(16px, 4vmin, 40px)/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.pad.stopping .pad-play { opacity: 0.5; }
