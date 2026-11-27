@@ -62,23 +62,47 @@ const SoundSearch = (() => {
     }
   }
 
-  async function search(query, { page = 1, commercial = true, signal } = {}) {
-    const params = new URLSearchParams({
-      q: query, category: 'sound_effect', source: SOURCES,
-      page_size: String(PAGE_SIZE), page: String(page), mature: 'false',
-    });
+  // Openverse's tagging is uneven: many Freesound sounds have no category,
+  // so a strict query can come back empty. Try the most focused query first
+  // and widen it step by step until something is found.
+  const STRATEGIES = [
+    { source: SOURCES, category: 'sound_effect' },
+    { source: SOURCES },
+    {},
+  ];
+
+  async function query(q, filters, { page, commercial, signal }) {
+    const params = new URLSearchParams({ q, page_size: String(PAGE_SIZE), page: String(page), ...filters });
     if (commercial) params.set('license_type', 'commercial');
     const res = await get(`${API}?${params}`, { signal, headers: { Accept: 'application/json' } });
     if (res.status === 429) throw Object.assign(new Error('rate'), { code: 'rate' });
-    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { code: 'http' });
+    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { code: 'http', status: res.status });
     const data = await res.json();
     const results = (data.results || []).filter((r) => r.url && safeUrl(r.url));
     return { results, count: data.result_count || 0, pages: data.page_count || 1 };
   }
 
+  // `level` is which strategy found results, so "More results" pages the same query.
+  async function search(q, { page = 1, commercial = true, signal, level } = {}) {
+    if (level != null) return { ...(await query(q, STRATEGIES[level], { page, commercial, signal })), level };
+    let lastErr = null;
+    for (let i = 0; i < STRATEGIES.length; i++) {
+      try {
+        const out = await query(q, STRATEGIES[i], { page, commercial, signal });
+        if (out.results.length) return { ...out, level: i };
+      } catch (err) {
+        // A rejected filter (400) just means try a wider query; anything else is a real failure.
+        if (err.code !== 'http' || err.status !== 400) throw err;
+        lastErr = err;
+      }
+    }
+    if (lastErr) throw lastErr;
+    return { results: [], count: 0, pages: 0, level: 0 };
+  }
+
   async function download(r, signal) {
     const res = await get(r.url, { signal });
-    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { code: 'http' });
+    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { code: 'http', status: res.status });
     const len = +res.headers.get('content-length') || 0;
     if (len > MAX_BYTES) throw Object.assign(new Error('too big'), { code: 'size' });
     const bytes = await res.arrayBuffer();
@@ -134,7 +158,8 @@ const SoundSearch = (() => {
     if (err && err.code === 'rate') return 'Too many searches in a row. Wait a few seconds and try again.';
     if (err && err.code === 'size') return 'That file is too large for a pad (over 25 MB).';
     if (err && err.code === 'decode') return "That file's format won't play on this device. Try another result.";
-    return "Couldn't reach the sound library. Check your connection and try again.";
+    const code = err && err.status ? ` (error ${err.status})` : '';
+    return `Couldn't reach the sound library${code}. Check your connection and try again.`;
   }
 
   function open({ onPick, initialQuery = '' }) {
@@ -164,9 +189,11 @@ const SoundSearch = (() => {
     more.hidden = true;
     setStatus('Searching…');
     try {
-      const { results, count, pages } = await search(q, { page, commercial: commercialBox.checked, signal: ctrl.signal });
+      const { results, count, pages, level } = await search(q, {
+        page, commercial: commercialBox.checked, signal: ctrl.signal, level: page > 1 ? state.level : undefined,
+      });
       if (ctrl.signal.aborted) return;
-      state.query = q; state.page = page; state.pages = pages;
+      state.query = q; state.page = page; state.pages = pages; state.level = level;
       results.forEach((r) => list.appendChild(row(r)));
       if (!list.children.length) setStatus(`No sound effects found for "${q}". Try a simpler word${commercialBox.checked ? ', or include non-commercial sounds' : ''}.`);
       else setStatus(page === 1 ? `${count >= 10000 ? '10,000+' : count.toLocaleString()} result${count === 1 ? '' : 's'}` : '');
