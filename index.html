@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#111318">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SoundBoarder">
+  <title>SoundBoarder</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="toolbar">
+    <h1 class="brand">SoundBoarder</h1>
+    <div class="toolbar-controls">
+      <label class="count">
+        <span>Pads</span>
+        <select id="padCount" aria-label="Number of pads shown"></select>
+      </label>
+      <button id="editToggle" class="btn" aria-pressed="false" type="button">Edit</button>
+      <button id="stopAll" class="btn btn-stop" type="button" title="Stop all (Esc)">Stop all</button>
+    </div>
+  </header>
+
+  <main id="board" class="board" aria-label="Sound pads"></main>
+
+  <p id="editHint" class="edit-hint" hidden>Edit mode: tap a pad to set its sound, name and options. Tap Done when finished.
+    <button id="creditsBtn" type="button" class="link-btn" hidden>Sound credits</button></p>
+
+  <!-- iOS and most browsers need a user gesture before audio can play -->
+  <div id="unlock" class="unlock" role="button" tabindex="0">
+    <div class="unlock-inner">
+      <div class="unlock-logo" aria-hidden="true"></div>
+      <h2>SoundBoarder</h2>
+      <p id="unlockStatus">Loading sounds…</p>
+      <p class="unlock-cta">Tap to start</p>
+    </div>
+  </div>
+
+  <dialog id="editor" class="editor">
+    <form method="dialog" id="editorForm">
+      <h2 id="editorTitle">Edit pad</h2>
+
+      <div class="field">
+        <span class="label">Sound</span>
+        <div class="file-row">
+          <span id="fileName" class="file-name">No sound loaded</span>
+          <span class="file-buttons">
+            <button type="button" id="searchBtn" class="btn btn-small">Search online</button>
+            <label class="btn btn-small">
+              Choose MP3
+              <input id="fileInput" type="file" hidden>
+            </label>
+          </span>
+        </div>
+        <p id="creditLine" class="credit-line" hidden></p>
+        <p id="fileError" class="error" hidden></p>
+      </div>
+
+      <label class="field">
+        <span class="label">Name</span>
+        <input id="nameInput" type="text" maxlength="40" autocomplete="off">
+      </label>
+
+      <div class="field">
+        <span class="label">Colour</span>
+        <div id="swatches" class="swatches" role="radiogroup" aria-label="Pad colour"></div>
+      </div>
+
+      <label class="field">
+        <span class="label">Volume <output id="volumeOut"></output></span>
+        <input id="volumeInput" type="range" min="0" max="100" step="1">
+      </label>
+
+      <div class="field-row">
+        <label class="field">
+          <span class="label">Fade in (s)</span>
+          <input id="fadeInInput" type="number" min="0" max="30" step="0.1" inputmode="decimal">
+        </label>
+        <label class="field">
+          <span class="label">Fade out (s)</span>
+          <input id="fadeOutInput" type="number" min="0" max="30" step="0.1" inputmode="decimal">
+        </label>
+      </div>
+
+      <div class="field-row">
+        <label class="field check">
+          <input id="loopInput" type="checkbox">
+          <span>Loop</span>
+        </label>
+        <label class="field">
+          <span class="label">Keyboard key</span>
+          <input id="keyInput" type="text" maxlength="1" autocomplete="off" autocapitalize="off" placeholder="none">
+        </label>
+      </div>
+
+      <div class="editor-actions">
+        <button type="button" id="previewBtn" class="btn">Preview</button>
+        <button type="button" id="clearBtn" class="btn btn-danger">Clear pad</button>
+        <span class="spacer"></span>
+        <button type="button" id="cancelBtn" class="btn">Cancel</button>
+        <button type="submit" value="save" id="saveBtn" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="searchDialog" class="editor search">
+    <div class="search-inner">
+      <div class="search-head">
+        <h2>Find a sound</h2>
+        <button type="button" id="searchClose" class="btn btn-small">Close</button>
+      </div>
+      <form id="searchForm" class="search-form" role="search">
+        <input id="searchInput" type="search" placeholder="e.g. applause, door slam, air horn" autocomplete="off" enterkeyhint="search" aria-label="Search sound effects">
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+      <label class="field check search-filter">
+        <input id="searchCommercial" type="checkbox" checked>
+        <span>Only sounds I can use commercially (streams, radio, paid shows)</span>
+      </label>
+      <p id="searchStatus" class="search-status" role="status" aria-live="polite"></p>
+      <ul id="searchResults" class="search-results"></ul>
+      <button type="button" id="searchMore" class="btn" hidden>More results</button>
+      <p class="search-foot">Free sounds from Freesound and Wikimedia Commons, found with <a href="https://openverse.org" target="_blank" rel="noopener noreferrer">Openverse</a>. Most need a credit: it's saved with the pad under Sound credits.</p>
+    </div>
+  </dialog>
+
+  <dialog id="creditsDialog" class="editor">
+    <form method="dialog" class="credits-inner">
+      <h2>Sound credits</h2>
+      <p class="muted">Sounds found online are free to use under the licences below. Credit them where you use them, for example in a stream or show description.</p>
+      <ol id="creditsList" class="credits-list"></ol>
+      <div class="editor-actions">
+        <button type="button" id="copyCredits" class="btn">Copy all</button>
+        <span class="spacer"></span>
+        <button type="submit" class="btn btn-primary">Done</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="db.js"></script>
+  <script src="audio.js"></script>
+  <script src="search.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
