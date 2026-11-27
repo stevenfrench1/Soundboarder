@@ -10,6 +10,8 @@ Built for iPad and phone first; works on a laptop too. No App Store, no account,
 2. Tap an empty pad, or press **Edit** then tap any pad, to choose an MP3 and set its name, colour, volume, loop, fade in/out and keyboard key.
 3. Tap a pad to play it. Tapping a playing pad restarts it. Pads can play at the same time.
 4. **Stop all** (or `Esc`) fades everything out using each pad's fade-out; press it again to cut immediately. A playing pad also shows a small ■ to stop just that pad (or `Shift` + its key).
+You can also drag an audio file onto a pad, for example from the Files app in iPad Split View, or from Finder on a laptop.
+
 5. **Pads** chooses how many pads (1 to 12) are shown. Hidden pads keep their sounds.
 
 Default keys are `Q W E R / A S D F / Z X C V`, matching the 4 × 3 layout.

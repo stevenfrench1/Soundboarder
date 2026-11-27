@@ -310,3 +310,6 @@ body.editing .pad:not(.empty)::after {
 
 /* keep long names clear of the stop button while playing */
 .pad.playing .pad-name { padding-right: 40px; }
+
+/* drag an audio file over a pad */
+.pad.drop-target { outline: 3px dashed #fff; outline-offset: -6px; filter: brightness(1.2); }
