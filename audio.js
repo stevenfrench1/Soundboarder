@@ -29,8 +29,23 @@ const Engine = (() => {
     });
   }
 
+  // Decoded audio is uncompressed and large (about 23 MB per stereo minute),
+  // and iPad Safari closes a tab that uses too much memory. So refuse files
+  // that would decode to more than a pad needs.
+  const MAX_SECONDS = 600;
+  const tooLong = () => Object.assign(new Error('Sound too long for a pad'), { name: 'TooLongError' });
+
+  function checkSize(arrayBuffer) {
+    const head = new Uint8Array(arrayBuffer, 0, Math.min(4, arrayBuffer.byteLength));
+    const isWav = String.fromCharCode(...head) === 'RIFF';
+    // ~10 minutes of 192 kbps MP3, or of 16-bit 48 kHz stereo WAV
+    if (arrayBuffer.byteLength > (isWav ? 120e6 : 15e6)) throw tooLong();
+  }
+
   async function load(id, arrayBuffer) {
+    checkSize(arrayBuffer);
     const buf = await decode(arrayBuffer);
+    if (buf.duration > MAX_SECONDS) throw tooLong();
     buffers.set(id, buf);
     return buf;
   }
@@ -154,6 +169,8 @@ const Engine = (() => {
     ensureRunning,
     has: (id) => buffers.has(id),
     duration: (id) => buffers.get(id)?.duration ?? 0,
+    // bytes of decoded audio held in memory
+    memoryUsed: () => [...buffers.values()].reduce((n, b) => n + b.length * b.numberOfChannels * 4, 0),
     isPlaying: (id) => voices.has(id),
     isStopping: (id) => !!voices.get(id)?.stopping,
     playingIds: () => [...voices.keys()],

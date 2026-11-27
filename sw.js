@@ -1,6 +1,6 @@
 // Offline support: the whole app is cached on first visit and served from
 // the cache afterwards. Bump VERSION whenever any app file changes.
-const VERSION = 'soundboarder-v4';
+const VERSION = 'soundboarder-v5';
 const FILES = [
   './',
   'index.html',

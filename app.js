@@ -21,6 +21,8 @@
   const toastEl = $('#toast');
 
   let pads = [];
+  const MAX_FILE_BYTES = 120e6; // don't even read bigger files into memory
+  const failedPads = new Set(); // pads with a stored sound that couldn't be loaded
   let visibleCount = 12;
   let editMode = false;
   let unlocked = false;
@@ -94,7 +96,9 @@
     el.classList.toggle('playing', Engine.isPlaying(i));
     el.classList.toggle('stopping', Engine.isStopping(i));
     el.querySelector('.pad-name').textContent =
-      loaded ? (pad.name || pad.fileName || `Pad ${i + 1}`) : (editMode ? '+ Add sound' : 'Empty');
+      loaded ? (pad.name || pad.fileName || `Pad ${i + 1}`)
+        : failedPads.has(i) ? `⚠ ${pad.name || pad.fileName} (not loaded)`
+        : (editMode ? '+ Add sound' : 'Empty');
     el.querySelector('.pad-key').textContent = pad.key ? pad.key.toUpperCase() : '';
     el.querySelector('.pad-key').hidden = !pad.key;
     const flags = [];
@@ -256,7 +260,7 @@
     f.fadeOut.value = pad.fadeOut;
     f.loop.checked = pad.loop;
     f.key.value = pad.key ? pad.key.toUpperCase() : '';
-    f.clear.hidden = !Engine.has(i);
+    f.clear.hidden = !Engine.has(i) && !failedPads.has(i);
     f.preview.disabled = !Engine.has(i);
     selectColour(pad.color);
     editor.returnValue = '';
@@ -329,7 +333,7 @@
           f.preview.disabled = false;
           showCredit(rec.credit);
         } catch (err) {
-          f.fileError.textContent = "That sound couldn't be decoded on this device. Try another.";
+          f.fileError.textContent = err && err.name === 'TooLongError' ? 'That sound is too long for a pad (10 minutes max). Try a shorter clip.' : "That sound couldn't be decoded on this device. Try another.";
           f.fileError.hidden = false;
         }
       },
@@ -342,6 +346,7 @@
     f.fileError.hidden = true;
     f.fileName.textContent = `Decoding ${file.name}…`;
     try {
+      if (file.size > MAX_FILE_BYTES) throw Object.assign(new Error('too big'), { name: 'TooLongError' });
       const bytes = await file.arrayBuffer();
       const buf = await Engine.load(PREVIEW_ID, bytes);
       editing.pending = { bytes, name: file.name, type: file.type, credit: null };
@@ -353,7 +358,8 @@
       editing.pending = null;
       f.fileName.textContent = Engine.has(editing.id) ? (pads[editing.id].fileName || 'Sound') : 'No sound loaded';
       console.warn('Could not load file', file.name, file.type, file.size, err);
-      f.fileError.textContent = file.size === 0
+      f.fileError.textContent = err && err.name === 'TooLongError' ? 'That sound is too long for a pad (10 minutes max). Try a shorter clip.'
+        : file.size === 0
         ? `"${file.name}" is empty. If it's in iCloud Drive, open it once in the Files app so it downloads, then try again.`
         : `Couldn't read "${file.name}" as audio. Try an MP3 file.`;
       f.fileError.hidden = false;
@@ -383,6 +389,7 @@
   f.clear.addEventListener('click', async () => {
     const id = editing.id;
     Engine.unload(id);
+    failedPads.delete(id); skipList(id, false);
     pads[id] = { ...defaultPad(id), color: pads[id].color, key: pads[id].key };
     await Promise.all([DB.deleteSound(id), DB.putPad(pads[id])]);
     editor.close('cleared');
@@ -419,6 +426,7 @@
         await DB.putSound(id, ed.pending);
         pad.fileName = ed.pending.name;
         pad.credit = ed.pending.credit || null;
+        failedPads.delete(id); skipList(id, false);
         requestPersistence();
       }
       pads[id] = pad;
@@ -427,6 +435,7 @@
       console.error(err);
       toast(err && err.name === 'QuotaExceededError'
         ? 'Not enough storage space on this device for that sound'
+        : err && err.name === 'TooLongError' ? 'That sound is too long for a pad (10 minutes max). Try a shorter clip.'
         : 'Could not save that pad');
     }
     renderPad(id);
@@ -470,8 +479,10 @@
   // the iOS file picker can't open iCloud Drive.
   async function loadDroppedFile(id, file) {
     try {
+      if (file.size > MAX_FILE_BYTES) throw Object.assign(new Error('too big'), { name: 'TooLongError' });
       const bytes = await file.arrayBuffer();
       await Engine.load(id, bytes);
+      failedPads.delete(id); skipList(id, false);
       const pad = pads[id];
       if (!pad.name || pad.name === (pad.fileName || '').replace(/\.[^.]+$/, '').slice(0, 40)) {
         pad.name = file.name.replace(/\.[^.]+$/, '').slice(0, 40);
@@ -486,6 +497,7 @@
       console.warn('Could not load dropped file', file.name, err);
       toast(err && err.name === 'QuotaExceededError'
         ? 'Not enough storage space on this device for that sound'
+        : err && err.name === 'TooLongError' ? 'That sound is too long for a pad (10 minutes max). Try a shorter clip.'
         : `Couldn't read "${file.name}" as audio`);
     }
     renderAll();
@@ -532,6 +544,23 @@
   window.addEventListener('resize', layout);
 
   // ---------- startup ----------
+  const DECODING_KEY = 'soundboarder-decoding';
+  const MEMORY_BUDGET = 450e6; // decoded audio; well under what iPad Safari allows a tab
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+  const lsSet = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (_) { /* ignore */ } };
+
+  // Pads whose sound closed the app while loading stay skipped until replaced or cleared.
+  const SKIP_KEY = 'soundboarder-skip';
+  function skipList(id, add) {
+    let list = [];
+    try { list = JSON.parse(lsGet(SKIP_KEY) || '[]'); } catch (_) { /* ignore */ }
+    if (id === undefined) return list;
+    list = list.filter((x) => x !== id);
+    if (add) list.push(id);
+    lsSet(SKIP_KEY, list.length ? JSON.stringify(list) : null);
+    return list;
+  }
+
   async function init() {
     pads = Array.from({ length: MAX_PADS }, (_, i) => defaultPad(i));
     let stored = [];
@@ -547,22 +576,44 @@
     padCountSel.value = visibleCount;
     buildBoard();
 
-    // Decode every stored sound now, so triggering never waits.
+    // Decode every stored sound now, so triggering never waits. One at a time,
+    // so memory peaks low. Before each, note which pad is decoding: if Safari
+    // closes the page mid-decode (out of memory), the next launch skips that
+    // pad instead of crashing again.
+    const crashedOn = lsGet(DECODING_KEY);
+    lsSet(DECODING_KEY, null);
+    if (crashedOn !== null) skipList(+crashedOn, true);
+    const skip = new Set(skipList());
     const withSound = pads.filter((p) => p.fileName);
     let done = 0;
+    const skipped = [];
     unlockStatus.textContent = withSound.length ? `Loading sounds… 0 of ${withSound.length}` : 'Ready';
-    await Promise.all(withSound.map(async (p) => {
-      try {
-        const rec = await DB.getSound(p.id);
-        if (rec && rec.bytes) await Engine.load(p.id, rec.bytes);
-      } catch (err) {
-        console.error('Could not load pad', p.id, err);
+    for (const p of withSound) {
+      if (skip.has(p.id)) {
+        skipped.push(p.id);
+      } else if (Engine.memoryUsed() > MEMORY_BUDGET) {
+        skipped.push(p.id);
+      } else {
+        lsSet(DECODING_KEY, String(p.id));
+        try {
+          const rec = await DB.getSound(p.id);
+          if (rec && rec.bytes) await Engine.load(p.id, rec.bytes);
+        } catch (err) {
+          console.error('Could not load pad', p.id, err);
+          skipped.push(p.id);
+        }
+        lsSet(DECODING_KEY, null);
       }
       done++;
       unlockStatus.textContent = `Loading sounds… ${done} of ${withSound.length}`;
       renderPad(p.id);
-    }));
-    unlockStatus.textContent = withSound.length ? `${withSound.length} sound${withSound.length > 1 ? 's' : ''} ready` : 'Ready';
+    }
+    const ok = withSound.length - skipped.length;
+    unlockStatus.textContent = withSound.length ? `${ok} sound${ok === 1 ? '' : 's'} ready` : 'Ready';
+    if (skipped.length) {
+      skipped.forEach((id) => { failedPads.add(id); renderPad(id); });
+      unlockStatus.textContent += `. Couldn't load pad ${skipped.map((id) => id + 1).join(', ')} (too large for this device). Replace or clear it in Edit.`;
+    }
     document.body.classList.add('ready');
   }
 
