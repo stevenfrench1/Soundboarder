@@ -29,6 +29,7 @@
   const defaultPad = (id) => ({
     id, name: '', color: COLOURS[id % COLOURS.length], volume: 100,
     loop: false, fadeIn: 0, fadeOut: 0, key: DEFAULT_KEYS[id] || '', fileName: '',
+    credit: null, // licence + attribution for sounds found online
   });
 
   // ---------- toast ----------
@@ -111,6 +112,7 @@
     editToggle.textContent = editMode ? 'Done' : 'Edit';
     editToggle.setAttribute('aria-pressed', String(editMode));
     $('#editHint').hidden = !editMode;
+    creditsBtn.hidden = !pads.some((p) => p.credit && p.fileName);
     layout();
   }
 
@@ -178,7 +180,7 @@
   stopAllBtn.addEventListener('click', stopAll);
 
   document.addEventListener('keydown', (e) => {
-    if (editor.open) return;
+    if (editor.open || creditsDialog.open) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (!unlocked) doUnlock();
     if (e.key === 'Escape') { e.preventDefault(); stopAll(); return; }
@@ -218,6 +220,7 @@
     name: $('#nameInput'), swatches: $('#swatches'), volume: $('#volumeInput'), volumeOut: $('#volumeOut'),
     fadeIn: $('#fadeInInput'), fadeOut: $('#fadeOutInput'), loop: $('#loopInput'), key: $('#keyInput'),
     preview: $('#previewBtn'), clear: $('#clearBtn'), save: $('#saveBtn'),
+    search: $('#searchBtn'), credit: $('#creditLine'),
   };
   let editing = null; // { id, color, pending: { bytes, name, type } | null }
   const PREVIEW_ID = 'preview';
@@ -245,6 +248,7 @@
     f.fileName.textContent = Engine.has(i) ? `${pad.fileName || 'Sound'} (${fmtDur(Engine.duration(i))})` : 'No sound loaded';
     f.fileError.hidden = true;
     f.fileInput.value = '';
+    showCredit(Engine.has(i) ? pad.credit : null);
     f.name.value = pad.name;
     f.volume.value = pad.volume;
     f.volumeOut.textContent = `${pad.volume}%`;
@@ -276,6 +280,62 @@
   });
   f.key.addEventListener('input', () => { f.key.value = f.key.value.slice(-1).toUpperCase(); });
 
+  // A short credit line under the sound, with links to the source and licence.
+  function showCredit(c) {
+    const el = f.credit;
+    el.textContent = '';
+    el.hidden = !c;
+    if (!c) return;
+    el.append(creditNode(c));
+  }
+
+  function link(text, href) {
+    if (!href) return document.createTextNode(text);
+    const a = document.createElement('a');
+    a.href = href; a.textContent = text; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    return a;
+  }
+
+  function creditNode(c) {
+    const frag = document.createDocumentFragment();
+    frag.append(link(`"${c.title}"`, c.pageUrl));
+    if (c.creator) frag.append(' by ', link(c.creator, c.creatorUrl));
+    frag.append(' · ', link(c.licenseLabel, c.licenseUrl));
+    if (c.source) frag.append(` · ${c.source}`);
+    if (c.nonCommercial) {
+      const w = document.createElement('strong');
+      w.className = 'nc-warn';
+      w.textContent = ' · Non-commercial use only';
+      frag.append(w);
+    } else if (!c.needsCredit) {
+      frag.append(' · No credit needed');
+    }
+    return frag;
+  }
+
+  f.search.addEventListener('click', () => {
+    if (!unlocked) doUnlock();
+    const ed = editing;
+    SoundSearch.open({
+      initialQuery: f.name.value.trim(),
+      onPick: async (rec) => {
+        if (editing !== ed) return;
+        f.fileError.hidden = true;
+        try {
+          const buf = await Engine.load(PREVIEW_ID, rec.bytes);
+          ed.pending = rec;
+          f.fileName.textContent = `${rec.name} (${fmtDur(buf.duration)})`;
+          if (!f.name.value.trim()) f.name.value = rec.credit.title.slice(0, 40);
+          f.preview.disabled = false;
+          showCredit(rec.credit);
+        } catch (err) {
+          f.fileError.textContent = "That sound couldn't be decoded on this device. Try another.";
+          f.fileError.hidden = false;
+        }
+      },
+    });
+  });
+
   f.fileInput.addEventListener('change', async () => {
     const file = f.fileInput.files[0];
     if (!file) return;
@@ -284,8 +344,9 @@
     try {
       const bytes = await file.arrayBuffer();
       const buf = await Engine.load(PREVIEW_ID, bytes);
-      editing.pending = { bytes, name: file.name, type: file.type };
+      editing.pending = { bytes, name: file.name, type: file.type, credit: null };
       f.fileName.textContent = `${file.name} (${fmtDur(buf.duration)})`;
+      showCredit(null);
       if (!f.name.value.trim()) f.name.value = file.name.replace(/\.[^.]+$/, '').slice(0, 40);
       f.preview.disabled = false;
     } catch (err) {
@@ -322,7 +383,7 @@
     pads[id] = { ...defaultPad(id), color: pads[id].color, key: pads[id].key };
     await Promise.all([DB.deleteSound(id), DB.putPad(pads[id])]);
     editor.close('cleared');
-    renderPad(id);
+    renderAll();
     toast(`Pad ${id + 1} cleared`);
   });
 
@@ -354,6 +415,7 @@
         await Engine.load(id, ed.pending.bytes);
         await DB.putSound(id, ed.pending);
         pad.fileName = ed.pending.name;
+        pad.credit = ed.pending.credit || null;
         requestPersistence();
       }
       pads[id] = pad;
@@ -365,7 +427,40 @@
         : 'Could not save that pad');
     }
     renderPad(id);
+    renderAll();
   }
+
+  // ---------- credits ----------
+  const creditsBtn = $('#creditsBtn');
+  const creditsDialog = $('#creditsDialog');
+  const creditsList = $('#creditsList');
+  const creditedPads = () => pads.filter((p) => p.credit && p.fileName);
+
+  creditsBtn.addEventListener('click', () => {
+    creditsList.textContent = '';
+    for (const p of creditedPads()) {
+      const li = document.createElement('li');
+      const head = document.createElement('div');
+      head.className = 'credit-pad';
+      head.textContent = `Pad ${p.id + 1}${p.name ? `: ${p.name}` : ''}`;
+      const body = document.createElement('div');
+      body.append(creditNode(p.credit));
+      li.append(head, body);
+      creditsList.appendChild(li);
+    }
+    creditsDialog.showModal();
+  });
+
+  $('#copyCredits').addEventListener('click', async () => {
+    const text = creditedPads().filter((p) => p.credit.needsCredit)
+      .map((p) => SoundSearch.creditText(p.credit)).join('\n');
+    try {
+      await navigator.clipboard.writeText(text || 'No credits needed.');
+      toast('Credits copied');
+    } catch (_) {
+      toast("Couldn't copy. Select the text and copy it instead");
+    }
+  });
 
   // Ask the browser not to evict our stored sounds under storage pressure.
   let persistAsked = false;

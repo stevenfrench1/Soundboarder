@@ -29,7 +29,8 @@
 
   <main id="board" class="board" aria-label="Sound pads"></main>
 
-  <p id="editHint" class="edit-hint" hidden>Edit mode: tap a pad to set its sound, name and options. Tap Done when finished.</p>
+  <p id="editHint" class="edit-hint" hidden>Edit mode: tap a pad to set its sound, name and options. Tap Done when finished.
+    <button id="creditsBtn" type="button" class="link-btn" hidden>Sound credits</button></p>
 
   <!-- iOS and most browsers need a user gesture before audio can play -->
   <div id="unlock" class="unlock" role="button" tabindex="0">
@@ -49,11 +50,15 @@
         <span class="label">Sound</span>
         <div class="file-row">
           <span id="fileName" class="file-name">No sound loaded</span>
-          <label class="btn btn-small">
-            Choose MP3
-            <input id="fileInput" type="file" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg" hidden>
-          </label>
+          <span class="file-buttons">
+            <button type="button" id="searchBtn" class="btn btn-small">Search online</button>
+            <label class="btn btn-small">
+              Choose MP3
+              <input id="fileInput" type="file" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg" hidden>
+            </label>
+          </span>
         </div>
+        <p id="creditLine" class="credit-line" hidden></p>
         <p id="fileError" class="error" hidden></p>
       </div>
 
@@ -104,10 +109,45 @@
     </form>
   </dialog>
 
+  <dialog id="searchDialog" class="editor search">
+    <div class="search-inner">
+      <div class="search-head">
+        <h2>Find a sound</h2>
+        <button type="button" id="searchClose" class="btn btn-small">Close</button>
+      </div>
+      <form id="searchForm" class="search-form" role="search">
+        <input id="searchInput" type="search" placeholder="e.g. applause, door slam, air horn" autocomplete="off" enterkeyhint="search" aria-label="Search sound effects">
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+      <label class="field check search-filter">
+        <input id="searchCommercial" type="checkbox" checked>
+        <span>Only sounds I can use commercially (streams, radio, paid shows)</span>
+      </label>
+      <p id="searchStatus" class="search-status" role="status" aria-live="polite"></p>
+      <ul id="searchResults" class="search-results"></ul>
+      <button type="button" id="searchMore" class="btn" hidden>More results</button>
+      <p class="search-foot">Free sounds from Freesound and Wikimedia Commons, found with <a href="https://openverse.org" target="_blank" rel="noopener noreferrer">Openverse</a>. Most need a credit: it's saved with the pad under Sound credits.</p>
+    </div>
+  </dialog>
+
+  <dialog id="creditsDialog" class="editor">
+    <form method="dialog" class="credits-inner">
+      <h2>Sound credits</h2>
+      <p class="muted">Sounds found online are free to use under the licences below. Credit them where you use them, for example in a stream or show description.</p>
+      <ol id="creditsList" class="credits-list"></ol>
+      <div class="editor-actions">
+        <button type="button" id="copyCredits" class="btn">Copy all</button>
+        <span class="spacer"></span>
+        <button type="submit" class="btn btn-primary">Done</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="db.js"></script>
   <script src="audio.js"></script>
+  <script src="search.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

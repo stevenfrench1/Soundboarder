@@ -1,12 +1,13 @@
 // Offline support: the whole app is cached on first visit and served from
 // the cache afterwards. Bump VERSION whenever any app file changes.
-const VERSION = 'soundboarder-v1';
+const VERSION = 'soundboarder-v2';
 const FILES = [
   './',
   'index.html',
   'styles.css',
   'db.js',
   'audio.js',
+  'search.js',
   'app.js',
   'manifest.webmanifest',
   'icons/icon.svg',
@@ -30,7 +31,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== location.origin) return;
+  // Online sound search goes straight to the network and is never cached here:
+  // a picked sound is stored in IndexedDB with its pad instead.
+  if (url.pathname.startsWith('/sfx/')) return;
   event.respondWith(
     caches.match(req, { ignoreSearch: true }).then((hit) => {
       if (hit) return hit;
