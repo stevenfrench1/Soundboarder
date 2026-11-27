@@ -326,7 +326,7 @@ body.editing .pad:not(.empty)::after {
 .search-inner { display: flex; flex-direction: column; gap: 10px; padding: 18px; height: 100%; }
 .search-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .search-head h2 { margin: 0; font-size: 20px; }
-.search-form { display: flex; gap: 8px; }
+.search .search-form { display: flex; flex-direction: row; gap: 8px; padding: 0; } /* override .editor form */
 .search-form input {
   flex: 1; min-width: 0; min-height: 44px; font-size: 16px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
@@ -358,4 +358,3 @@ body.editing .pad:not(.empty)::after {
   .file-row { flex-wrap: wrap; }
   .search-inner { padding: 14px; }
 }
-.search .search-form { padding: 0; flex-direction: row; gap: 8px; }
