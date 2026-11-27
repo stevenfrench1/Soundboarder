@@ -35,3 +35,12 @@ python3 -m http.server 8000
 ```
 
 then open <http://localhost:8000>. Installing as an app and offline mode need HTTPS (or localhost).
+
+## Hosting
+
+Hosted on Netlify (site `soundboarder-app`, linked to this repository):
+
+- `main` is the live app: <https://soundboarder-app.netlify.app>
+- Every pull request gets its own preview at `https://deploy-preview-<PR number>--soundboarder-app.netlify.app`, so changes can be tried on a real iPad before merging.
+
+There is no build step; `netlify.toml` publishes the repository root as-is.
