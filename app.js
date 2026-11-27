@@ -465,6 +465,50 @@
     }
   });
 
+  // Drag and drop: drop an audio file (e.g. from the Files app in iPad
+  // Split View, or from Finder) straight onto a pad. This also works when
+  // the iOS file picker can't open iCloud Drive.
+  async function loadDroppedFile(id, file) {
+    try {
+      const bytes = await file.arrayBuffer();
+      await Engine.load(id, bytes);
+      const pad = pads[id];
+      if (!pad.name || pad.name === (pad.fileName || '').replace(/\.[^.]+$/, '').slice(0, 40)) {
+        pad.name = file.name.replace(/\.[^.]+$/, '').slice(0, 40);
+      }
+      pad.fileName = file.name;
+      pad.credit = null; // a dropped file replaces any sound found online
+      await DB.putSound(id, { bytes, name: file.name, type: file.type });
+      await DB.putPad(pad);
+      requestPersistence();
+      toast(`Loaded "${file.name}" into pad ${id + 1}`);
+    } catch (err) {
+      console.warn('Could not load dropped file', file.name, err);
+      toast(err && err.name === 'QuotaExceededError'
+        ? 'Not enough storage space on this device for that sound'
+        : `Couldn't read "${file.name}" as audio`);
+    }
+    renderAll();
+  }
+  board.addEventListener('dragover', (e) => {
+    const padEl = e.target.closest('.pad');
+    if (!padEl || !e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    padEls.forEach((p) => p.classList.toggle('drop-target', p === padEl));
+  });
+  board.addEventListener('dragleave', (e) => {
+    if (!board.contains(e.relatedTarget)) padEls.forEach((p) => p.classList.remove('drop-target'));
+  });
+  board.addEventListener('drop', (e) => {
+    const padEl = e.target.closest('.pad');
+    padEls.forEach((p) => p.classList.remove('drop-target'));
+    const file = e.dataTransfer && e.dataTransfer.files[0];
+    if (!padEl || !file) return;
+    e.preventDefault();
+    loadDroppedFile(+padEl.dataset.id, file);
+  });
+
   // Ask the browser not to evict our stored sounds under storage pressure.
   let persistAsked = false;
   function requestPersistence() {

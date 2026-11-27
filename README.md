@@ -13,6 +13,8 @@ Built for iPad and phone first; works on a laptop too. No App Store, no account,
 5. **Search online** (in a pad's editor) finds free sound effects from Freesound and Wikimedia Commons. Tap ▶ to hear one, **Use** to put it on the pad. It's downloaded once and stored like an MP3 you chose, so it fires instantly and works offline. Each one keeps its licence and credit: in Edit mode, **Sound credits** lists them and copies them for a show or stream description. "Only sounds I can use commercially" is on by default; turn it off to include non-commercial sounds (marked in yellow).
 6. **Pads** chooses how many pads (1 to 12) are shown. Hidden pads keep their sounds.
 
+You can also drag an audio file onto a pad, for example from the Files app in iPad Split View, or from Finder on a laptop.
+
 Default keys are `Q W E R / A S D F / Z X C V`, matching the 4 × 3 layout.
 
 ### Install on iPad / iPhone
