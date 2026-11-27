@@ -179,11 +179,23 @@
     const i = +padEl.dataset.id;
     e.preventDefault();
     if (!unlocked) doUnlock();
-    if (e.target.closest('.pad-stop')) { stopPad(i); return; }
-    if (editMode) { openEditor(i); return; }
+    if (e.target.closest('.pad-stop')) { downPad = -1; stopPad(i); return; }
+    // Opening the editor waits for the click (below). Opening it on press let
+    // the tap's own click land on whatever button the editor showed there.
+    downPad = i;
+    if (editMode || !Engine.has(i)) return;
     // fire on press, not release, for the lowest possible latency
     trigger(i);
     padEl.classList.add('pressed');
+  });
+  let downPad = -1; // only a click whose press started on this pad counts
+  board.addEventListener('click', (e) => {
+    const padEl = e.target.closest('.pad');
+    const pressed = downPad;
+    downPad = -1;
+    if (!padEl || e.target.closest('.pad-stop')) return;
+    const i = +padEl.dataset.id;
+    if (i === pressed && i < visibleCount && (editMode || !Engine.has(i))) openEditor(i);
   });
   const release = (e) => {
     const padEl = e.target.closest && e.target.closest('.pad');

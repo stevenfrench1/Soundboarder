@@ -380,3 +380,48 @@ body.editing .pad:not(.empty)::after {
   font-variant-numeric: tabular-nums;
 }
 .pad.stopping .pad-play { opacity: 0.5; }
+
+/* ---------- raised 3D pads ----------
+   A pad with a sound stands up like a physical button: lit from above,
+   with a darker edge underneath. While it plays it is pushed in: it drops
+   onto its edge and the face is shaded from above, like a button held down. */
+.pad:not(.empty) {
+  --edge: color-mix(in srgb, var(--pad) 55%, #000);
+  --depth: 6px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.04) 45%, rgba(0, 0, 0, 0.10) 100%),
+    var(--pad);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18),
+    0 var(--depth) 0 var(--edge),
+    0 calc(var(--depth) + 4px) 10px rgba(0, 0, 0, 0.45);
+  transform: translateY(calc(var(--depth) * -1));
+  transition: transform 70ms ease-out, box-shadow 70ms ease-out, filter 70ms ease-out;
+}
+/* room for the raised edge so the top row isn't clipped */
+.board { padding-top: 10px; }
+
+.pad:not(.empty).pressed,
+.pad:not(.empty).playing {
+  transform: translateY(-1px);
+  filter: brightness(0.92);
+  box-shadow:
+    inset 0 4px 10px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    0 1px 0 var(--edge),
+    0 2px 3px rgba(0, 0, 0, 0.4);
+}
+/* playing also keeps the white ring so it reads from across a room */
+.pad:not(.empty).playing {
+  box-shadow:
+    0 0 0 3px #fff,
+    inset 0 4px 10px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    0 1px 0 var(--edge);
+}
+.pad:not(.empty).pressed { filter: brightness(1.08); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pad:not(.empty) { transition: none; }
+}
