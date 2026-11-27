@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#111318">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SoundBoarder">
+  <title>SoundBoarder</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="toolbar">
+    <h1 class="brand">SoundBoarder</h1>
+    <div class="toolbar-controls">
+      <label class="count">
+        <span>Pads</span>
+        <select id="padCount" aria-label="Number of pads shown"></select>
+      </label>
+      <button id="editToggle" class="btn" aria-pressed="false" type="button">Edit</button>
+      <button id="stopAll" class="btn btn-stop" type="button" title="Stop all (Esc)">Stop all</button>
+    </div>
+  </header>
+
+  <main id="board" class="board" aria-label="Sound pads"></main>
+
+  <p id="editHint" class="edit-hint" hidden>Edit mode: tap a pad to set its sound, name and options. Tap Done when finished.</p>
+
+  <!-- iOS and most browsers need a user gesture before audio can play -->
+  <div id="unlock" class="unlock" role="button" tabindex="0">
+    <div class="unlock-inner">
+      <div class="unlock-logo" aria-hidden="true"></div>
+      <h2>SoundBoarder</h2>
+      <p id="unlockStatus">Loading sounds…</p>
+      <p class="unlock-cta">Tap to start</p>
+    </div>
+  </div>
+
+  <dialog id="editor" class="editor">
+    <form method="dialog" id="editorForm">
+      <h2 id="editorTitle">Edit pad</h2>
+
+      <div class="field">
+        <span class="label">Sound</span>
+        <div class="file-row">
+          <span id="fileName" class="file-name">No sound loaded</span>
+          <label class="btn btn-small">
+            Choose MP3
+            <input id="fileInput" type="file" hidden>
+          </label>
+        </div>
+        <p id="fileError" class="error" hidden></p>
+      </div>
+
+      <label class="field">
+        <span class="label">Name</span>
+        <input id="nameInput" type="text" maxlength="40" autocomplete="off">
+      </label>
+
+      <div class="field">
+        <span class="label">Colour</span>
+        <div id="swatches" class="swatches" role="radiogroup" aria-label="Pad colour"></div>
+      </div>
+
+      <label class="field">
+        <span class="label">Volume <output id="volumeOut"></output></span>
+        <input id="volumeInput" type="range" min="0" max="100" step="1">
+      </label>
+
+      <div class="field-row">
+        <label class="field">
+          <span class="label">Fade in (s)</span>
+          <input id="fadeInInput" type="number" min="0" max="30" step="0.1" inputmode="decimal">
+        </label>
+        <label class="field">
+          <span class="label">Fade out (s)</span>
+          <input id="fadeOutInput" type="number" min="0" max="30" step="0.1" inputmode="decimal">
+        </label>
+      </div>
+
+      <div class="field-row">
+        <label class="field check">
+          <input id="loopInput" type="checkbox">
+          <span>Loop</span>
+        </label>
+        <label class="field">
+          <span class="label">Keyboard key</span>
+          <input id="keyInput" type="text" maxlength="1" autocomplete="off" autocapitalize="off" placeholder="none">
+        </label>
+      </div>
+
+      <div class="editor-actions">
+        <button type="button" id="previewBtn" class="btn">Preview</button>
+        <button type="button" id="clearBtn" class="btn btn-danger">Clear pad</button>
+        <span class="spacer"></span>
+        <button type="button" id="cancelBtn" class="btn">Cancel</button>
+        <button type="submit" value="save" id="saveBtn" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="db.js"></script>
+  <script src="audio.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
